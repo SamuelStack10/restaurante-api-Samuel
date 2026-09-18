@@ -11,7 +11,7 @@ app.use(express.json())
 
 app.get("/",(req,res)=>{
     res.json({
-        mensagem:"API funcionando"
+        mensagem:"API do restaurante Sabor Eduardo funcionando"
     })
 })
 
