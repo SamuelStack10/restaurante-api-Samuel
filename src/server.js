@@ -7,6 +7,8 @@ const jwt = require("jsonwebtoken")
 
 const auth = require("./middleware/auth")
 
+const bcrypt = require("bcryptjs")
+
 const app = express()
 
 const PORT = 3001
@@ -25,7 +27,7 @@ app.post("/login", async (req, res) => {
 
     try {
         const [usuarios] = await db.query(
-            "SELECT * FROM usuario WHERE email = ? AND senha = ?",
+            "SELECT * FROM usuario WHERE email = ? ",
             [email, senha]
         );
 
@@ -37,9 +39,11 @@ app.post("/login", async (req, res) => {
 
         const usuario = usuarios[0];
 
-        if(usuario.senha !== senha) {
+        const senhaValida = await bcrypt.compare(senha, usuario.senha);
+
+        if(!senhaValida) {
             return res.status(401).json({ 
-                mensagem: "E-mail ou senha inválidos" 
+                mensagem: "Senha inválida" 
             });
         }
 
@@ -49,13 +53,63 @@ app.post("/login", async (req, res) => {
             { expiresIn: "1h" }
         );
 
-        res.json({ token });
+        res.json({ 
+            mensagem: "Login realizado com sucesso",
+            token 
+        });
 
     } catch (error) {
         console.error(error);
         res.status(500).json({ mensagem: "Erro ao realizar login" });
     }
 });
+
+app.post("/register", async (req, res) => {
+    try {
+        const { nome, email, senha } = req.body;
+
+        if (!nome || !email || !senha) {
+            return res.status(400).json({ 
+                mensagem: "Todos os campos são obrigatórios" 
+            });
+        }
+
+        const [usuarioExistente] = await db.query(
+            "SELECT * FROM usuario WHERE email = ?",
+            [email]
+        );
+
+        if (usuarioExistente.length > 0) {
+            return res.status(400).json({ 
+                mensagem: "E-mail já cadastrado" 
+            });
+        }
+
+        const senhaHash = await bcrypt.hash(senha, 10);
+
+        const [resultado] = await db.query(
+            "INSERT INTO usuario (nome, email, senha) VALUES (?, ?, ?)",
+            [nome, email, senhaHash]
+        );
+
+        res.status(201).json({
+            mensagem: "Usuário cadastrado com sucesso",
+            usuario: {
+                id: resultado.insertId, 
+                nome,
+                email
+            }
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ 
+            mensagem: "Erro interno de novo" 
+        });
+    }
+});
+
+
 
 app.get("/produtos", auth, async (req,res)=>{
     try {
@@ -67,12 +121,6 @@ app.get("/produtos", auth, async (req,res)=>{
         console.log(error)
     }
 })
-
-
-
-
-
-
 app.post("/produto", async (req, res) => {
     try {
         const { descricao, categoria, preco, imagem } = req.body;
@@ -82,7 +130,7 @@ app.post("/produto", async (req, res) => {
             VALUES (?, ?, ?, ?)
         `;
 
-        const [result] = await db.execute(sql, [
+        const [resultado] = await db.execute(sql, [
             descricao,
             categoria,
             preco,
@@ -92,7 +140,7 @@ app.post("/produto", async (req, res) => {
         res.status(201).json({
             mensagem: "Produto cadastrado com sucesso",
             produto: {
-                id: result.insertId,
+                id: resultado.insertId,
                 descricao,
                 categoria,
                 preco,
