@@ -87,19 +87,26 @@ app.post("/register", async (req, res) => {
 
         const senhaHash = await bcrypt.hash(senha, 10);
 
-        const [resultado] = await db.query(
+        // 1. Executa o insert sem desestruturar o array ainda para evitar erros
+        const queryResult = await db.query(
             "INSERT INTO usuario (nome, email, senha) VALUES (?, ?, ?)",
             [nome, email, senhaHash]
         );
 
+        // 2. Descobre de onde vem o insertId com base no driver do MySQL instalado
+        // Algumas bibliotecas retornam [rows, fields], outras retornam direto o objeto
+        const info = Array.isArray(queryResult) ? queryResult[0] : queryResult;
+        const novoId = info?.insertId || info?.id || null;
+
         res.status(201).json({
             mensagem: "Usuário cadastrado com sucesso",
             usuario: {
-                id: resultado.insertId, 
+                id: novoId,
                 nome,
                 email
             }
         });
+
 
     } catch (error) {
         console.error(error);
